@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head> 
+<meta charset="UTF-8">
+<title>Samet Utku OLGUN - Technique Mesaj.Link</title>
+<meta name="description" content="Messaging app" />
+<meta name="keywords" content="message app">
+<meta name="robots" content="noindex,nofollow">
+<link href="http://mesaj.link/public/tez/index.html" rel="canonical">
+<meta property="og:description" content="Messaging app" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+
+<script> 
+/* 
+Samet Utku OLGUN 
+21.04.2021
+*/
+Route="router.php";
+Cache={};
+MesajLINK={}; 
+Socket=0;
+StaticFunctions = {
+ hashlistener: function (query=0) {
+ window.addEventListener('hashchange', PageView.HashChanged);
+ },
+ notification: function (query=0) {
+ return alert(query);
+ },
+ redirect: function (query="#") {
+ window.location.href = query;
+ },
+ checkmail: function (email=0) {
+ const re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+ return re.test(String(email).toLowerCase());
+ }
+}
+Function = {
+getFunction: function (query=0) {
+if(query=="home"){
+}
+if(query=="signupform"){ 
+/* SignUp Form */
+if($('.inp_yourpass').val() != $('.inp_yourpassb').val()){StaticFunctions.notification("Şifreniz Aynı Değil"); return 0; }
+if($('.inp_yourname').val() == "" || $('.inp_yourmail').val() == "" || $('.inp_yourpass').val() == ""){ StaticFunctions.notification("Lütfen boş alan bırakmayın."); return 0; }
+if(!StaticFunctions.checkmail($('.inp_yourmail').val())){ return 0;}
+ret = {
+name : $('.inp_yourname').val(),
+mail : $('.inp_yourmail').val(),
+password : $('.inp_yourpass').val()
+};
+return ret;
+}
+if(query=="signinform"){ 
+/* SignIn Form */
+if($('.inp_yourmail').val() == "" || $('.inp_yourpass').val() == ""){ StaticFunctions.notification("Lütfen boş alan bırakmayın."); return 0; }
+if(!StaticFunctions.checkmail($('.inp_yourmail').val())){ StaticFunctions.notification("Lütfen geçerli mail adresi girin."); return 0;}
+ret = {
+mail : $('.inp_yourmail').val(),
+password : $('.inp_yourpass').val()
+};
+return ret;
+}
+},
+pageFunctions: function (query=0) { 
+/* 
+Simple App Page Router
+*/
+ if(query=="home"){
+ /* Anasayfa */
+ return 1;
+ }
+ if(query=="signin"){
+ /* Anasayfa */
+ return 1;
+ }
+ if(query=="signup"){
+ /* Sign Up */
+ return 1;
+ }
+ if(query=="chat"){
+ /* Giriş Kontrol */
+ if(Cache["profile"]==null){
+ StaticFunctions.notification("Lütfen Giriş Yapınız.");
+ StaticFunctions.redirect("#signin");
+ return 0;
+ }
+ /* Login */
+ ChatLive.SendQuery({key:"Login",val:{mail:Cache["profile"]["mail"],name:Cache["profile"]["name"],password:Cache["profile"]["password"]}});
+ /* Check Message */
+ setTimeout(function(){
+ ChatLive.SendQuery({key:"CheckMessage",val:{C:1,H:2,E:3,C:4,K:5}});
+ }, 2000);
+ return 1;
+ }
+ return "pagenotfound";
+ }
+}
+PageFunction = {
+ getFunction: function (query=0) {
+ if(query["post"]!=null){if(query["post"]==0){return 0;}}
+$.ajax({
+ url: Route,
+ method: 'POST',
+ data: query,
+ async: false,
+ success: function (response) { 
+ response = JSON.parse(response); 
+ 
+ if(response["query"] != null){
+ if(response["query"]=="signin"){
+ /* Sign In Function */
+ if(response["logincheck"]!=null){
+ if(response["logincheck"]==1 && response["profile"]["mail"]!=null && response["profile"]["password"]!=null){
+ document.cookie = "MesajLINKmail="+response["profile"]["mail"];
+ document.cookie = "MesajLINKpassword="+response["profile"]["password"];
+ if(response["profile"]["mail"]!=null || response["profile"]["name"]!=null || response["profile"]["password"]){
+ Cache["profile"]={
+ mail: response["profile"]["mail"],
+ name: response["profile"]["name"],
+ password: response["profile"]["password"]
+ };
+ }
+ }else{
+ }
+ }
+ }
+ }
+ if(response["notification"]!=null){
+StaticFunctions.notification(response["notification"]);
+ }
+ if(response["redirect"]!=null){
+StaticFunctions.redirect(response["redirect"]);
+ }
+ }
+ });
+ },
+ chatpage: function (query=0) { 
+ }
+}
+PageView = {
+ getPage: function (query=0) {
+ query=query.replace("#", "");
+ location.hash=location.hash.replace("#", "");
+if(query != location){ 
+ window.location.href = "#"+query;
+}
+loadpage = Function.pageFunctions(query);
+if(loadpage=="pagenotfound"){query="pagenotfound";}
+if(loadpage!=0){
+$.ajax({
+ url: Route,
+ method: 'POST',
+ data: {
+ how : "loadpage",
+ getpage : query,
+ },
+ async: false,
+ success: function (response) {
+ $( "#screensam" ) .html( response ); 
+ Function.getFunction(query);
+ }
+ });
+}
+ },
+HashChanged: function () {
+PageView.getPage(location.hash);
+}
+} 
+</script>
+<script src="http://207.246.112.17:3000/socket.io/socket.io.js"></script>
+<script>
+MesajLINK["SocketConnect"] = io('http://207.246.112.17:3000');
+ChatLive = { 
+ SELECT: function (query={}){ 
+ if(query["key"] == null || query["val"] == null){return 0;}
+ if(query["val"]["notification"] !=null){
+ StaticFunctions.notification(query["val"]["notification"]);
+ }
+ if(query["key"] == "checkreturn"){
+ ChatLive.CheckReturn(query["val"]);
+ }
+ if(query["key"] == "Update"){
+ ChatLive.Update(query["val"]);
+ }
+ if(query["key"] == "CheckMessage"){
+ ChatLive.CheckMessage(query["val"]);
+ }
+ if(query["key"] == "ConnectChat"){
+ ChatLive.ConnectChat(query["val"]);
+ }
+ return 0;
+ },
+ Update: function (query=0){ 
+ if(query["usercount"]==null || query["connect"]==null || query["profiles"]==null){return 0;}
+ try { 
+ document.getElementsByClassName("onlinecount")[0].innerHTML = query["usercount"];
+ document.getElementsByClassName("connectstatus")[0].innerHTML = query["connect"];
+ if(query["profiles"]!=null){ 
+ i=0; yazdir = "";
+ for( var key in query["profiles"] ) {
+ ++i; if(i>5){break;}
+ profil = query["profiles"][key];
+ yazdir += '<div class="people" onclick=""><div class="name">'+profil["name"]+'</div><div class="mail">'+profil["mail"]+'</div><div class="buttons"><button type="button" class="btn btn-primary" onclick=\'ChatLive.SendQuery({key:"ConnectChat",val:{connect:"'+profil["mail"]+'"}});\'>Start Message</button></div></div>';
+ }
+ document.getElementsByClassName("SearchFriend")[0].innerHTML = yazdir;
+ }
+ } catch(err) { }
+ },
+ UpdateMessageList: function (query=0){ 
+ /* Live Chat Update */
+ if(Cache["connected"]!=null){
+ if(Cache["messagelist"]!=null){
+ if(Cache["messagelist"][Cache["connected"]] != null){
+ LiveChatWrite = "";
+ for (key in Cache["messagelist"][Cache["connected"]]) {
+ obj = Cache["messagelist"][Cache["connected"]][key];
+ if(obj["me"]!=null && obj["username"]!=null){
+ LiveChatWrite += "<div style='text-align:right;'>"+obj["username"]+": "+obj["message"]+"</div>";
+ }else{
+ LiveChatWrite += "<div>"+obj["sender"]+": "+obj["message"]+"</div>";
+ }
+ }
+ document.getElementsByClassName("privatechatarea")[0].innerHTML = LiveChatWrite; 
+ }
+ }
+ }
+ LiveChatWrite = "";
+ for (key in Cache["messagelist"]) {
+ WhoIs = Cache["messagelist"][key];
+ var keys = Object.keys(WhoIs);
+ var last = keys[keys.length - 1];
+ var lastmessage = WhoIs[last];
+ if(lastmessage["me"]!=null){
+ LiveChatWrite += '<div>Mail: '+lastmessage["sender"]+': '+lastmessage["message"]+' (sen)<div><button type="button" class="btn btn-primary" onclick="ChatLive.SendQuery({key:\'ConnectChat\',val:{connect:\''+lastmessage["sender"]+'\'}});">View Message</button></div></div>';
+ }else{
+ LiveChatWrite += '<div>Mail: '+lastmessage["sender"]+': '+lastmessage["message"]+' <div><button type="button" class="btn btn-primary" onclick="ChatLive.SendQuery({key:\'ConnectChat\',val:{connect:\''+lastmessage["sender"]+'\'}});">View Message</button></div></div>';
+ }
+ 
+ 
+ }
+ document.getElementsByClassName("ChatArea")[0].innerHTML = LiveChatWrite; 
+ 
+ },
+ CheckMessage: function (query=0){ 
+ try {
+ if(query["checkserver"] != null && query["checkserver"]!=0){ 
+ ChatLive.SendQuery({key:"CheckMessage",val:{C:1,H:2,E:3,C:4,K:5}});
+ return 0;
+ }else{
+ if(query["checkmessages"]==null || query["messages"]==null){return 0;}
+ if(query["checkmessages"]==1){
+ if(Object.keys(query["messages"]).length<1){return 0;}
+ if(Cache["messagelist"]==null){Cache["messagelist"]={};}
+ for (key in query["messages"]) {
+ obj = query["messages"][key]; 
+ document.getElementsByClassName("CryptoMessages")[0].value += query["messages"][key]; 
+ if(obj["sender"]!=null){
+ if(Cache["messagelist"][obj["sender"]]==null){Cache["messagelist"][obj["sender"]]={};}
+ if(obj["me"]!=null && obj["username"]!=null){
+ Cache["messagelist"][obj["sender"]][obj["time"]] = {client:obj["client"],sender: obj["sender"],time: obj["time"],message: obj["message"],me:obj["me"],username:obj["username"]};
+ }else{
+ Cache["messagelist"][obj["sender"]][obj["time"]] = {client:obj["client"],sender: obj["sender"],time: obj["time"],message: obj["message"]};
+ }
+ }else{ 
+ 
+ $.ajax({
+ url: "npm.php",
+ method: 'POST',
+ data: {
+ how : "decodemessage",
+ me : Cache["profile"]["mail"],
+ query : obj
+ },
+ async: false,
+ success: function (response) { 
+ obj=JSON.parse(response); 
+ if(Cache["messagelist"][obj["sender"]]==null){Cache["messagelist"][obj["sender"]]={};}
+ if(obj["me"]!=null && obj["username"]!=null){
+ Cache["messagelist"][obj["sender"]][obj["time"]] = {client:obj["client"],sender: obj["sender"],time: obj["time"],message: obj["message"],me:obj["me"],username:obj["username"]};
+ }else{
+ Cache["messagelist"][obj["sender"]][obj["time"]] = {client:obj["client"],sender: obj["sender"],time: obj["time"],message: obj["message"]};
+ }
+ }
+ });
+ }
+ }
+ ChatLive.UpdateMessageList();
+ }
+ }
+ } catch(err) { }
+ },
+ SendMessage: function (query=0){ 
+ try { 
+ messagetext = document.getElementsByClassName("messagetext")[0].value;
+ messageusername = document.getElementsByClassName("usernamewrite")[0].value; 
+ ChatLive.SendQuery({key:"SendMessage",val:{username:messageusername,text:messagetext}});
+ } catch(err) { }
+ 
+ 
+ },
+ SearchMessage: function (query=0){
+ try {
+ ChatLive.SendQuery({key:"ConnectChat",val:{connect:document.getElementsByClassName("connectchat")[0].value}});
+ } catch(err) { 
+ 
+ }
+ 
+ 
+ },
+ ConnectChat: function (query=0){
+ try {
+ profiledata = query["profiledata"];
+ document.getElementsByClassName("whoname")[0].innerHTML = profiledata["name"];
+ document.getElementsByClassName("usernamewrite")[0].value = profiledata["mail"];
+ Cache["connected"] = profiledata["mail"];
+ ChatLive.UpdateMessageList();
+ } catch(err) { 
+ }
+ },
+ ConnectSocket: function (query=0){ 
+ /* Connect Check */ 
+ try { return MesajLINK["SocketConnect"]; } catch(err) { return 0; }
+ }, 
+ SendQuery: function (query={}){
+ try { 
+ if(Cache["SID"]!=null){query["SID"]=Cache["SID"];}
+ ChatLive.ConnectSocket().emit('MesajLINK', query); } catch(err) { console.log("SendQuery: Error"); }
+ },
+ CheckReturn: function(query={}){ 
+ setTimeout(function(){ 
+ /* Check Server */ 
+ ChatLive.CheckReturn(); 
+ }, 1000);
+ },
+ ServerReturn: function(){ 
+ try { 
+ socket = ChatLive.ConnectSocket(); 
+ socket.on('MesajLINKClient', function(data) { 
+ if(data["SID"] != null){ 
+ Cache["SID"] = data["SID"];
+ }
+if(data["key"]==null || data["val"]==null){ }else{ 
+ChatLive.SELECT({key:data["key"],val:data["val"]});
+}
+});
+ }
+catch(err) { }
+}
+};
+ChatLive.ConnectSocket().on('tessstt', function(data) { 
+});
+ChatLive.ConnectSocket().emit('MesajLINK', "TESTT");
+/* Other */
+StaticFunctions.hashlistener();
+</script>
+<script>
+ChatLive.ServerReturn();
+</script>
+<style>
+@import "http://mesaj.link/public/style/fa/css/font-awesome.min.css";
+@import 'http://mesaj.link/public/style/bootstrap4/css/bootstrap.min.css';
+html,body{background:#fffff;height:100%;font-family: 'Font Awesome\ 5 Free', sans-serif;}
+header{border-bottom:1px solid #ddd;}
+main{width:90%;margin:auto;margin-top:25px;min-height:100%;}
+footer{padding:15px 0;border-top:1px solid #ddd;}
+</style>
+</head>
+<body id="wrapper">
+<header class="navbar navbar-expand-lg navbar-light bg-light"> <div class="row"> <div class="navbar-brand" onclick="PageView.getPage('home');"> Mesaj.Link </div> </div> </header> <main class="standart"> <div id="screensam"></div> <script> if(location.hash != ""){ PageView.getPage(location.hash); }else{ PageView.getPage("home"); } </script></main> <footer class="navbar navbar-expand-lg navbar-light bg-light"> Copyright 2021 </footer>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+</body>
+</html>
